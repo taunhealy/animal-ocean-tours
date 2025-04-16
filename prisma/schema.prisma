@@ -1,0 +1,398 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User accounts (customers, guides, admins)
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String?
+  password          String    // Hashed password
+  role              UserRole  @default(CUSTOMER)
+  phone             String?
+  address           String?
+  emergencyContact  String?
+  image             String?   // NextAuth image field
+  profileImage      String?   // URL to image
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  bookings          Booking[]
+  reviews           Review[]
+  guidedTours       Tour[]    @relation("TourGuide")
+  accounts          Account[]
+  sessions          Session[]
+  guidedSchedules   TourSchedule[]
+  guideProfile      GuideProfile?
+  customerProfile   CustomerProfile?
+  auditLogs         AuditLog[]
+  waitlistEntries   WaitlistEntry[]
+}
+
+enum UserRole {
+  CUSTOMER
+  GUIDE
+  ADMIN
+  STAFF
+}
+
+// Generic equipment inventory
+model Equipment {
+  id              String    @id @default(cuid())
+  type            String    // Generic equipment type (stored as string)
+  name            String
+  description     String?   @db.Text
+  dailyRate       Decimal   @db.Decimal(10, 2)
+  images          String[]  // Array of image URLs
+  available       Boolean   @default(true)
+  maintenanceDate DateTime?
+  features        String[]  // Array of features
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  bookingEquipment BookingEquipment[]
+  tourEquipment   TourEquipment[]
+  availability    EquipmentAvailability[]
+  brand           String?
+  size            String?
+  isAvailable     Boolean   @default(true)
+  // Custom fields can be stored in metadata
+  metadata        Json?     // Store additional equipment-specific data
+}
+
+// Tours offered
+model Tour {
+  id              String    @id @default(cuid())
+  name            String
+  description     String    @db.Text
+  difficulty      String    // Generic difficulty level (stored as string)
+  duration        Int       // in hours or days
+  location        String
+  highlights      String[]
+  inclusions      String[]
+  exclusions      String[]
+  maxParticipants Int
+  basePrice       Decimal   @db.Money
+  images          String[]  // Array of image URLs
+  published       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  guideId         String?
+  guide           User?     @relation("TourGuide", fields: [guideId], references: [id])
+  schedules       TourSchedule[]
+  equipment       TourEquipment[]
+  accommodations  TourAccommodation[]
+  itinerary       TourItinerary[]
+  deleted         Boolean   @default(false)
+  deletedAt       DateTime?
+  
+  categoryId      String?
+  category        TourCategory? @relation(fields: [categoryId], references: [id])
+  tags            Tag[]         @relation("TourTags")
+  locationId      String?
+  locationDetails Location? @relation(fields: [locationId], references: [id])
+  
+  // Generic fields for any tour type
+  tourType        String    // Store as string for flexibility
+  
+  // Location relationships
+  startLocationId String?
+  startLocation   Location? @relation("TourStart", fields: [startLocationId], references: [id])
+  
+  endLocationId   String?
+  endLocation     Location? @relation("TourEnd", fields: [endLocationId], references: [id])
+  
+  // Custom fields can be stored in metadata
+  metadata        Json?     // Store additional tour-specific data
+}
+
+// Available tour dates
+model TourSchedule {
+  id              String           @id @default(cuid())
+  tourId          String
+  tour            Tour             @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  startDate       DateTime
+  endDate         DateTime
+  price           Decimal          @db.Decimal(10, 2)
+  availableSpots  Int
+  status          String           @default("OPEN") // Generic status as string
+  notes           String?          @db.Text
+  guideId         String?          // Guide assigned to this specific schedule
+  guide           User?            @relation(fields: [guideId], references: [id])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  bookings        Booking[]
+  equipmentAvailability EquipmentAvailability[]
+  waitlistEntries WaitlistEntry[]
+  // Weather or conditions data
+  conditions      Json?            // Store weather or other condition data
+  // Custom fields
+  metadata        Json?            // Store additional schedule-specific data
+}
+
+// Equipment for tours
+model TourEquipment {
+  id            String     @id @default(cuid())
+  tourId        String
+  tour          Tour       @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  equipmentId   String
+  equipment     Equipment  @relation(fields: [equipmentId], references: [id])
+  quantity      Int        @default(1)  // How many of this equipment are available
+  included      Boolean    @default(false) // Whether it's included in base price
+  additionalFee Decimal?   @db.Decimal(10, 2) // Fee if not included
+}
+
+// Accommodations during tours
+model TourAccommodation {
+  id            String     @id @default(cuid())
+  tourId        String
+  tour          Tour       @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  name          String
+  location      String
+  description   String?    @db.Text
+  nightNumber   Int        // Which night of the tour
+  type          String     // Generic accommodation type as string
+  amenities     String[]
+  images        String[]
+  
+  // Add location relation
+  locationId    String?
+  locationDetails Location? @relation(fields: [locationId], references: [id])
+}
+
+// Customer bookings
+model Booking {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  tourScheduleId    String
+  tourSchedule      TourSchedule      @relation(fields: [tourScheduleId], references: [id])
+  bookingDate       DateTime          @default(now())
+  status            String            @default("PENDING") // Generic status as string
+  totalAmount       Decimal           @db.Decimal(10, 2)
+  paidAmount        Decimal           @db.Decimal(10, 2) @default(0)
+  participants      Int
+  specialRequests   String?           @db.Text
+  insuranceOption   Boolean           @default(false)
+  equipmentRentals  EquipmentRental[]
+  equipment         BookingEquipment[]
+  payments          Payment[]
+  review            Review?
+  paymentPlan       PaymentPlan?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  // Custom fields
+  metadata          Json?             // Store additional booking-specific data
+}
+
+// Equipment for bookings
+model BookingEquipment {
+  id            String     @id @default(cuid())
+  bookingId     String
+  booking       Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  equipmentId   String
+  equipment     Equipment  @relation(fields: [equipmentId], references: [id])
+  participantId String     // Which participant gets this equipment
+}
+
+// Equipment rentals
+model EquipmentRental {
+  id            String     @id @default(cuid())
+  bookingId     String
+  booking       Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  equipmentType String     // Generic equipment type as string
+  quantity      Int
+  pricePerDay   Decimal    @db.Decimal(10, 2)
+}
+
+// Payment records
+model Payment {
+  id            String        @id @default(cuid())
+  bookingId     String
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod String        // Generic payment method as string
+  paymentDate   DateTime      @default(now())
+  status        String        @default("PENDING") // Generic status as string
+  transactionId String?
+  notes         String?
+  
+  // Add payment plan relation
+  paymentPlanId String?
+  paymentPlan   PaymentPlan? @relation(fields: [paymentPlanId], references: [id])
+}
+
+// Customer reviews
+model Review {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id])
+  bookingId     String     @unique
+  booking       Booking    @relation(fields: [bookingId], references: [id])
+  rating        Int        // 1-5 stars
+  comment       String?    @db.Text
+  tourHighlight String?
+  photos        String[]   // URLs to photos
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  published     Boolean    @default(false)
+}
+
+// NextAuth.js Models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Tour itinerary - daily activities
+model TourItinerary {
+  id          String    @id @default(cuid())
+  tourId      String
+  tour        Tour      @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  dayNumber   Int       // Which day of the tour
+  title       String    // E.g., "Day 1: Bangkok to Chiang Mai"
+  description String    @db.Text
+  distance    Int?      // Distance covered in km
+  activities  String[]  // Array of activities
+  meals       String[]  // Which meals are included (breakfast, lunch, dinner)
+  highlights  String[]  // Special highlights of the day
+  overnight   String?   // Where travelers stay overnight
+  images      String[]  // Images for this day
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  action      String      // CREATE, UPDATE, DELETE
+  entityType  String      // Tour, Booking, etc.
+  entityId    String
+  details     Json?       // What changed
+  timestamp   DateTime    @default(now())
+}
+
+// Equipment availability
+model EquipmentAvailability {
+  id            String       @id @default(cuid())
+  equipmentId   String
+  equipment     Equipment    @relation(fields: [equipmentId], references: [id])
+  startDate     DateTime
+  endDate       DateTime
+  reason        String?      // TOUR, MAINTENANCE, etc.
+  tourScheduleId String?
+  tourSchedule  TourSchedule? @relation(fields: [tourScheduleId], references: [id])
+}
+
+// Guide profile - generic for any tour type
+model GuideProfile {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio             String?   @db.Text
+  languages       String[]
+  certifications  String[]
+  specialties     String[]  // Generic specialties
+  yearsExperience Int       @default(0)
+  // Custom fields
+  metadata        Json?     // Store additional guide-specific data
+}
+
+// Customer profile - generic for any tour type
+model CustomerProfile {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  user               User      @relation(fields: [userId], references: [id])
+  experienceLevel    String?   // Generic experience level as string
+  dietaryRestrictions String[]
+  medicalNotes       String?   @db.Text
+  // Custom fields
+  metadata           Json?     // Store additional customer-specific data
+}
+
+model PaymentPlan {
+  id            String    @id @default(cuid())
+  bookingId     String    @unique  // Make unique to ensure one plan per booking
+  booking       Booking   @relation(fields: [bookingId], references: [id])
+  totalAmount   Decimal   @db.Decimal(10, 2)
+  installments  Int
+  frequency     String    // WEEKLY, MONTHLY
+  payments      Payment[]
+}
+
+model WaitlistEntry {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  tourScheduleId  String
+  tourSchedule    TourSchedule @relation(fields: [tourScheduleId], references: [id])
+  requestDate     DateTime  @default(now())
+  participants    Int       @default(1)
+  notes           String?
+  status          String    @default("WAITING") // Generic status as string
+}
+
+model TourCategory {
+  id          String    @id @default(cuid())
+  name        String    @unique // Generic category name
+  description String?
+  tours       Tour[]
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  tours       Tour[]    @relation("TourTags")
+}
+
+model Location {
+  id          String    @id @default(cuid())
+  name        String
+  address     String?
+  city        String
+  country     String
+  latitude    Float?
+  longitude   Float?
+  tours       Tour[]    // For the locationDetails relation
+  toursStarting Tour[] @relation("TourStart")
+  toursEnding   Tour[] @relation("TourEnd")
+  accommodations TourAccommodation[]
+}

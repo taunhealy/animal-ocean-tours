@@ -1,0 +1,239 @@
+@import "tailwindcss";
+
+/* Define custom utilities for the theme variables */
+@layer utilities {
+  .bg-background {
+    background-color: hsl(var(--background));
+  }
+
+  .text-foreground {
+    color: hsl(var(--foreground));
+  }
+
+  .text-primary {
+    color: hsl(var(--primary));
+  }
+
+  .text-primary-dark {
+    color: hsl(var(--primary-dark, var(--primary)));
+  }
+}
+
+@layer theme {
+  :root {
+    /* Color system using HSL values */
+    --color-primary: 221 83% 53%; /* Royal Blue */
+    --color-primary-dark: 222 81% 48%;
+    --color-primary-light: 217 91% 60%;
+    --color-secondary: 38 92% 50%; /* Amber */
+    --color-accent: 160 84% 39%; /* Emerald */
+    --color-danger: 0 84% 60%; /* Red */
+    --color-warning: 25 95% 53%; /* Orange */
+    --color-success: 160 84% 39%; /* Green */
+
+    /* Shadcn UI Theme Variables */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+
+    /* Font family */
+    --font-primary: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    /* Spacing - Based on 4px grid */
+    --spacing: 0.25rem;
+
+    /* Border Radius */
+    --radius-sm: 0.125rem;
+    --radius-md: 0.25rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.75rem;
+    --radius-2xl: 1rem;
+    --radius-full: 9999px;
+
+    /* Transitions */
+    --transition-fast: 150ms;
+    --transition-normal: 250ms;
+    --transition-slow: 350ms;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+/* Base element styles */
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    @apply text-gray-900 antialiased;
+  }
+
+  body {
+    font-family: var(--font-primary);
+    @apply bg-white text-gray-900 text-base;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-bold;
+  }
+
+  p {
+    @apply mb-4;
+  }
+
+  a {
+    @apply text-blue-600 hover:text-blue-800 transition-colors;
+  }
+}
+
+/* Component styles */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 text-white hover:bg-blue-700;
+  }
+
+  .btn-secondary {
+    @apply bg-amber-500 text-white hover:bg-amber-600;
+  }
+
+  .btn-outline {
+    @apply border border-gray-300 bg-transparent hover:bg-gray-50;
+  }
+
+  .card {
+    @apply bg-white rounded-lg shadow-md overflow-hidden;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-blue {
+    @apply bg-blue-100 text-blue-800;
+  }
+
+  .badge-green {
+    @apply bg-green-100 text-green-800;
+  }
+
+  .badge-amber {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  .badge-red {
+    @apply bg-red-100 text-red-800;
+  }
+
+  /* Typography scale classes based on Major Third (5:4) ratio */
+  .text-display {
+    @apply text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight;
+    line-height: 1.1;
+  }
+
+  .text-h1 {
+    @apply text-3xl sm:text-4xl md:text-5xl font-bold;
+    line-height: 1.2;
+  }
+
+  .text-h2 {
+    @apply text-2xl sm:text-3xl md:text-4xl font-bold;
+    line-height: 1.25;
+  }
+
+  .text-h3 {
+    @apply text-xl sm:text-2xl md:text-3xl font-semibold;
+    line-height: 1.3;
+  }
+
+  .text-h4 {
+    @apply text-lg sm:text-xl md:text-2xl font-semibold;
+    line-height: 1.35;
+  }
+
+  .text-h5 {
+    @apply text-base sm:text-lg md:text-xl font-medium;
+    line-height: 1.4;
+  }
+
+  .text-h6 {
+    @apply text-sm sm:text-base md:text-lg font-medium;
+    line-height: 1.45;
+  }
+}
+
+/* Utility classes */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
