@@ -114,7 +114,7 @@ export default async function TourGrid({ searchParams }: TourGridProps) {
   // If no tours found in database, use fallback data
   if (tours.length === 0) {
     // Apply filters to fallback data
-    tours = fallbackTours.filter((tour) => {
+    const filteredFallbackTours = fallbackTours.filter((tour) => {
       // Apply search filter
       if (searchParams.search) {
         const searchLower = searchParams.search.toLowerCase();
@@ -176,6 +176,33 @@ export default async function TourGrid({ searchParams }: TourGridProps) {
 
       return true;
     });
+
+    // Transform fallback data to match Prisma Tour structure
+    tours = filteredFallbackTours.map((tour) => ({
+      ...tour,
+      startLocation: tour.startLocation
+        ? {
+            id: "fallback-id",
+            name: tour.startLocation.name,
+            address: null,
+            city: "",
+            country: "",
+            latitude: null,
+            longitude: null,
+          }
+        : null,
+      endLocation: tour.endLocation
+        ? {
+            id: "fallback-id",
+            name: tour.endLocation.name,
+            address: null,
+            city: "",
+            country: "",
+            latitude: null,
+            longitude: null,
+          }
+        : null,
+    }));
   }
 
   if (tours.length === 0) {

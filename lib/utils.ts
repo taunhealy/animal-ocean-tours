@@ -13,10 +13,28 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
+export function formatDate(
+  dateString: string | Date,
+  includeTime = false
+): string {
+  if (!dateString) return "";
+
+  const date =
+    typeof dateString === "string" ? new Date(dateString) : dateString;
+
+  if (includeTime) {
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
     month: "long",
     day: "numeric",
-    year: "numeric",
-  }).format(date);
+  });
 }

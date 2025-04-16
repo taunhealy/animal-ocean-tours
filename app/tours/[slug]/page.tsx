@@ -5,24 +5,40 @@ import TourDetailHeader from "@/app/components/tours/TourDetailHeader";
 import TourHighlights from "@/app/components/tours/TourHighlights";
 import TourItinerary from "@/app/components/tours/TourItinerary";
 import BookingForm from "@/app/components/tours/BookingForm";
+import { fallbackTours } from "@/lib/data/tours";
+
+// Add PayPal checkout component import
+import PayPalCheckout from "@/app/components/checkout/PayPalCheckout";
 
 interface TourPageProps {
-  params: Promise<{ id: string }>;
+  params: { slug: string };
 }
 
 // Add this function to fetch tour data
-async function getTourById(id: string) {
-  // Use absolute URL with origin for server component
-  const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const response = await fetch(`${origin}/api/tours/${id}`, {
-    next: { revalidate: 3600 }, // Cache for 1 hour
-  });
+async function getTourById(slug: string) {
+  try {
+    // First try to fetch from API
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const response = await fetch(`${origin}/api/tours/${slug}`, {
+      next: { revalidate: 3600 }, // Cache for 1 hour
+    });
 
-  if (!response.ok) {
+    if (response.ok) {
+      return response.json();
+    }
+
+    // If API fails, fall back to static data
+    const fallbackTour = fallbackTours.find((tour) => tour.id === slug);
+    if (fallbackTour) {
+      return fallbackTour;
+    }
+
     return null;
+  } catch (error) {
+    // If fetch fails, try fallback data
+    const fallbackTour = fallbackTours.find((tour) => tour.id === slug);
+    return fallbackTour || null;
   }
-
-  return response.json();
 }
 
 export default async function TourPage({ params }: TourPageProps) {
@@ -36,9 +52,9 @@ export default async function TourPage({ params }: TourPageProps) {
     status: "OPEN",
   };
 
-  // Properly await the params in Next.js 15
-  const { id } = await params;
-  const tour = await getTourById(id);
+  // Use the slug from params directly
+  const slug = params.slug;
+  const tour = await getTourById(slug);
 
   if (!tour) {
     notFound();
@@ -52,11 +68,19 @@ export default async function TourPage({ params }: TourPageProps) {
         ? [placeholderSchedule]
         : [];
 
+  // Get location strings based on the schema structure
+  const startLocationName = tour.startLocation?.name || "";
+  const endLocationName = tour.endLocation?.name || "";
+  const locationString =
+    startLocationName === endLocationName
+      ? startLocationName
+      : `${startLocationName} to ${endLocationName}`;
+
   return (
     <main className="container mx-auto px-4 py-8 font-primary">
       <TourDetailHeader
         title={tour.name}
-        location={`${tour.startLocation} to ${tour.endLocation}`}
+        location={locationString}
         rating={tour.averageRating || 0}
         reviewCount={tour.reviewCount || 0}
         difficulty={tour.difficulty}
@@ -88,12 +112,12 @@ export default async function TourPage({ params }: TourPageProps) {
                 <p>{tour.duration} days</p>
               </div>
               <div>
-                <h3 className="text-lg font-medium">Distance</h3>
-                <p>{tour.distance} kilometers</p>
+                <h3 className="text-lg font-medium">Location</h3>
+                <p>{tour.location}</p>
               </div>
               <div>
                 <h3 className="text-lg font-medium">Max Participants</h3>
-                <p>{tour.maxParticipants} riders</p>
+                <p>{tour.maxParticipants} people</p>
               </div>
               <div>
                 <h3 className="text-lg font-medium">Difficulty</h3>
@@ -143,33 +167,35 @@ export default async function TourPage({ params }: TourPageProps) {
           )}
 
           {/* Tour Itinerary */}
-          {tour.itinerary && <TourItinerary itinerary={tour.itinerary} />}
+          {tour.itinerary && tour.itinerary.length > 0 && (
+            <TourItinerary itinerary={tour.itinerary} />
+          )}
 
-          {/* Available Motorcycles */}
-          {tour.motorcycles && tour.motorcycles.length > 0 && (
+          {/* Equipment Section */}
+          {tour.equipment && tour.equipment.length > 0 && (
             <div className="mb-8">
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-                Available Motorcycles
+                Available Equipment
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {tour.motorcycles.map((tourMotorcycle: any) => (
-                  <div
-                    key={tourMotorcycle.id}
-                    className="border rounded-lg p-4"
-                  >
+                {tour.equipment.map((item: any) => (
+                  <div key={item.id} className="border rounded-lg p-4">
                     <h3 className="font-medium">
-                      {tourMotorcycle.motorcycle.make}{" "}
-                      {tourMotorcycle.motorcycle.model}
+                      {item.equipment?.name || "Equipment"}
                     </h3>
                     <p className="text-sm text-gray-600">
-                      {tourMotorcycle.motorcycle.engineSize}cc •{" "}
-                      {tourMotorcycle.motorcycle.type}
+                      {item.equipment?.description || ""}
                     </p>
-                    {tourMotorcycle.surcharge && (
+                    {item.additionalFee && (
                       <p className="text-sm font-medium mt-2">
-                        Surcharge: {formatCurrency(tourMotorcycle.surcharge)}
+                        Additional Fee: {formatCurrency(item.additionalFee)}
                       </p>
                     )}
+                    <p className="text-sm mt-1">
+                      {item.included
+                        ? "Included in tour price"
+                        : "Available for rent"}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -192,6 +218,7 @@ export default async function TourPage({ params }: TourPageProps) {
                 tourId={tour.id}
                 schedules={schedules}
                 basePrice={tour.basePrice}
+                checkoutComponent={PayPalCheckout}
               />
             </div>
           </div>
