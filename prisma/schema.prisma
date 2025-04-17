@@ -46,6 +46,13 @@ enum UserRole {
   STAFF
 }
 
+enum DifficultyLevel {
+  EASY
+  MODERATE
+  CHALLENGING
+  EXTREME
+}
+
 // Generic equipment inventory
 model Equipment {
   id              String    @id @default(cuid())
@@ -74,9 +81,8 @@ model Tour {
   id              String    @id @default(cuid())
   name            String
   description     String    @db.Text
-  difficulty      String    // Generic difficulty level (stored as string)
+  difficulty      DifficultyLevel    // Generic difficulty level (stored as string)
   duration        Int       // in hours or days
-  location        String
   highlights      String[]
   inclusions      String[]
   exclusions      String[]
@@ -94,6 +100,8 @@ model Tour {
   itinerary       TourItinerary[]
   deleted         Boolean   @default(false)
   deletedAt       DateTime?
+    marineLifeIds String[] // Add this field
+  marineLife    String[]
   
   categoryId      String?
   category        TourCategory? @relation(fields: [categoryId], references: [id])
@@ -113,6 +121,14 @@ model Tour {
   
   // Custom fields can be stored in metadata
   metadata        Json?     // Store additional tour-specific data
+  paypalOrders    PaypalOrder[]
+  marineArea      String?
+  conservationInfo String?  // Add this line
+  seasons         String[] // Add this line
+  tideDependency    Boolean @default(false)
+  departurePort     String @default("")
+  expeditionType    String @default("")
+  safetyBriefing    String @default("")
 }
 
 // Available tour dates
@@ -137,6 +153,7 @@ model TourSchedule {
   conditions      Json?            // Store weather or other condition data
   // Custom fields
   metadata        Json?            // Store additional schedule-specific data
+  paypalOrders    PaypalOrder[]
 }
 
 // Equipment for tours
@@ -216,19 +233,20 @@ model EquipmentRental {
 
 // Payment records
 model Payment {
-  id            String        @id @default(cuid())
+  id            String   @id @default(cuid())
+  amount        Decimal  @db.Decimal(10, 2)  // Changed from Float to Decimal
+  paymentMethod String   
+  status        String   
+  transactionId String?  
+  booking       Booking  @relation(fields: [bookingId], references: [id])
   bookingId     String
-  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  amount        Decimal       @db.Decimal(10, 2)
-  paymentMethod String        // Generic payment method as string
-  paymentDate   DateTime      @default(now())
-  status        String        @default("PENDING") // Generic status as string
-  transactionId String?
-  notes         String?
-  
-  // Add payment plan relation
-  paymentPlanId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   paymentPlan   PaymentPlan? @relation(fields: [paymentPlanId], references: [id])
+  paymentPlanId String?
+
+  @@index([transactionId])
+  @@index([bookingId])
 }
 
 // Customer reviews
@@ -395,4 +413,30 @@ model Location {
   toursStarting Tour[] @relation("TourStart")
   toursEnding   Tour[] @relation("TourEnd")
   accommodations TourAccommodation[]
+}
+
+enum PaypalOrderStatus {
+  CREATED
+  APPROVED
+  COMPLETED
+  CANCELLED
+}
+
+model PaypalOrder {
+  id          String          @id @default(cuid())
+  orderId     String          @unique
+  status      PaypalOrderStatus
+  tour        Tour            @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  tourId      String
+  schedule    TourSchedule    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  scheduleId  String
+  participants Int
+  amount      Decimal         @db.Decimal(10, 2)
+  contactInfo Json
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([tourId])
+  @@index([scheduleId])
 }

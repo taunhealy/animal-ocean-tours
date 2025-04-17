@@ -3,15 +3,18 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Tour } from "@/lib/types/tour";
+import { MarineLifeItem } from "@/lib/types/marine-life";
+import { getMarineLifeData } from "@/lib/data/marine-life";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Checkbox } from "@/app/components/ui/checkbox";
-import Textarea from "@/app/components/ui/textarea";
+import { Textarea } from "@/app/components/ui/textarea";
+import { LOcationSelect } from "@/app/components/ui/location-select";
 import {
   Form,
   FormControl,
@@ -28,6 +31,8 @@ import {
   SelectValue,
 } from "@/app/components/ui/select";
 import { toast } from "sonner";
+import { MultiSelect } from "@/app/components/ui/multi-select";
+import { LocationSelect } from "@/app/components/ui/location-select";
 
 const difficultyOptions = [
   { value: "EASY", label: "Easy" },
@@ -36,54 +41,75 @@ const difficultyOptions = [
   { value: "EXTREME", label: "Extreme" },
 ];
 
+const seasonOptions = [
+  { value: "summer", label: "Summer" },
+  { value: "autumn", label: "Autumn" },
+  { value: "winter", label: "Winter" },
+  { value: "spring", label: "Spring" },
+];
+
 // Zod schema for form validation
 const tourFormSchema = z.object({
-  name: z
-    .string()
-    .min(3, { message: "Tour name must be at least 3 characters" }),
-  description: z
-    .string()
-    .min(10, { message: "Description must be at least 10 characters" }),
+  name: z.string().min(3, "Tour name must be at least 3 characters"),
+  description: z.string().min(50, "Description required"),
   difficulty: z.enum(["EASY", "MODERATE", "CHALLENGING", "EXTREME"]),
-  duration: z.coerce
-    .number()
-    .int()
-    .positive({ message: "Duration must be a positive number" }),
-  distance: z.coerce
-    .number()
-    .nonnegative({ message: "Distance must be a non-negative number" }),
-  startLocation: z.string().min(2, { message: "Start location is required" }),
-  endLocation: z.string().min(2, { message: "End location is required" }),
-  maxParticipants: z.coerce
-    .number()
-    .int()
-    .positive({ message: "Max participants must be a positive number" }),
-  basePrice: z.coerce
-    .number()
-    .nonnegative({ message: "Base price must be a non-negative number" }),
-  published: z.boolean().optional().default(false),
+  duration: z.coerce.number().int().positive(),
+  marineLifeIds: z.array(z.string()).min(1, "Select marine species"),
+  conservationInfo: z.string().min(20),
+  tideDependency: z.boolean().default(false),
+  departurePort: z.string().min(2),
+  marineArea: z.string().min(2),
+  seasons: z.array(z.string()).min(1),
+  expeditionType: z.string().min(2),
+  maxParticipants: z.coerce.number().int().positive(),
+  basePrice: z.coerce.number().nonnegative(),
+  requiredEquipment: z.array(z.string()).default([]),
+  safetyBriefing: z.string().optional(),
+  images: z.array(z.string()).default([]),
+  published: z.boolean().default(false),
+  guideId: z.string().optional(),
+  categoryId: z.string().optional(),
+  startLocationId: z.string().min(1, "Required"),
+  endLocationId: z.string().min(1, "Required"),
 });
 
 type TourFormValues = z.infer<typeof tourFormSchema>;
 
 interface TourFormProps {
   initialData?: Tour | null;
-  onSubmit?: (tourData: Omit<Tour, "id">) => void;
-  onSuccess?: () => void;
-  onCancel?: () => void;
-  isSubmitting?: boolean;
 }
 
-export default function TourForm({
-  initialData,
-  onSubmit,
-  onSuccess,
-  onCancel,
-}: TourFormProps) {
+export default function TourForm({ initialData }: TourFormProps) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch marine life data
+  const { data: marineLifeData = [] } = useQuery({
+    queryKey: ["marineLife"],
+    queryFn: () => getMarineLifeData(),
+  });
+
+  // Create marine life options for MultiSelect
+  const marineLifeOptions = marineLifeData.map((item: MarineLifeItem) => ({
+    value: item.id,
+    label: item.name,
+  }));
+
+  // Get unique expedition types from marine life data
+  const expeditionOptions = Array.from(
+    new Set(marineLifeData.flatMap((item: MarineLifeItem) => item.expeditions))
+  ).map((expedition) => ({
+    value: expedition,
+    label: expedition,
+  }));
+
+  // Add locations fetch
+  const { data: locations = [] } = useQuery({
+    queryKey: ["locations"],
+    queryFn: () => fetch("/api/locations").then((res) => res.json()),
+  });
 
   // Check authentication
   useEffect(() => {
@@ -99,21 +125,29 @@ export default function TourForm({
       name: initialData?.name || "",
       description: initialData?.description || "",
       difficulty: initialData?.difficulty || "MODERATE",
-      duration: initialData?.duration || 1,
-      distance: initialData?.distance ? Number(initialData.distance) : 0,
-      startLocation: initialData?.startLocation || "",
-      endLocation: initialData?.endLocation || "",
+      duration: initialData?.duration || 4,
+      marineLifeIds: initialData?.marineLifeIds || [],
+      tideDependency: initialData?.tideDependency ?? false,
+      marineArea: initialData?.marineArea || "",
+      seasons: initialData?.seasons || [],
+      expeditionType: initialData?.expeditionType || "",
       maxParticipants: initialData?.maxParticipants || 10,
       basePrice: initialData?.basePrice ? Number(initialData.basePrice) : 0,
+      requiredEquipment: initialData?.requiredEquipment || [],
+      safetyBriefing: initialData?.safetyBriefing || "",
+      images: initialData?.images || [],
       published: initialData?.published ?? false,
-    },
+      guideId: initialData?.guideId || "",
+      categoryId: initialData?.categoryId || "",
+      startLocationId: initialData?.startLocationId || "",
+      endLocationId: initialData?.endLocationId || "",
+    } as TourFormValues,
   });
 
   // Mutation for creating/updating tour
   const tourMutation = useMutation({
     mutationFn: async (values: TourFormValues) => {
       const url = initialData ? `/api/tours/${initialData.id}` : "/api/tours";
-
       const method = initialData ? "PATCH" : "POST";
 
       const response = await fetch(url, {
@@ -132,20 +166,11 @@ export default function TourForm({
       return response.json();
     },
     onSuccess: () => {
-      // Invalidate and refetch tours query
       queryClient.invalidateQueries({ queryKey: ["tours"] });
-
-      // Show success message
       toast.success(
         initialData ? "Tour updated successfully" : "Tour created successfully"
       );
-
-      // Call onSuccess callback or redirect
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push("/tours");
-      }
+      router.push("/dashboard/admin/tours");
     },
     onError: (error) => {
       toast.error(`Error: ${error.message}`);
@@ -155,11 +180,7 @@ export default function TourForm({
 
   const onSubmitForm = async (values: TourFormValues) => {
     setIsSubmitting(true);
-    if (onSubmit) {
-      onSubmit(values as any);
-    } else {
-      tourMutation.mutate(values);
-    }
+    tourMutation.mutate(values);
   };
 
   // If loading authentication, show loading state
@@ -172,11 +193,11 @@ export default function TourForm({
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmitForm as any)}
+        onSubmit={form.handleSubmit(onSubmitForm)}
         className="space-y-6 font-primary"
       >
         <FormField
-          control={form.control as any}
+          control={form.control}
           name="name"
           render={({ field }) => (
             <FormItem className="space-y-2">
@@ -190,7 +211,7 @@ export default function TourForm({
         />
 
         <FormField
-          control={form.control as any}
+          control={form.control}
           name="description"
           render={({ field }) => (
             <FormItem className="space-y-2">
@@ -205,7 +226,7 @@ export default function TourForm({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
-            control={form.control as any}
+            control={form.control}
             name="difficulty"
             render={({ field }) => (
               <FormItem className="space-y-2">
@@ -233,11 +254,11 @@ export default function TourForm({
           />
 
           <FormField
-            control={form.control as any}
+            control={form.control}
             name="duration"
             render={({ field }) => (
               <FormItem className="space-y-2">
-                <FormLabel>Duration (days)</FormLabel>
+                <FormLabel>Duration (hours)</FormLabel>
                 <FormControl>
                   <Input type="number" {...field} className="input" min={1} />
                 </FormControl>
@@ -249,21 +270,16 @@ export default function TourForm({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
-            control={form.control as any}
-            name="distance"
+            control={form.control}
+            name="marineLifeIds"
             render={({ field }) => (
-              <FormItem className="space-y-2">
-                <FormLabel>Distance (km)</FormLabel>
+              <FormItem>
+                <FormLabel>Marine Species</FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
-                    {...field}
-                    className="input"
-                    min={0}
-                    step={1}
-                    onChange={(e) =>
-                      field.onChange(parseInt(e.target.value) || 0)
-                    }
+                  <MultiSelect
+                    options={marineLifeOptions}
+                    selected={field.value}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />
@@ -272,7 +288,96 @@ export default function TourForm({
           />
 
           <FormField
-            control={form.control as any}
+            control={form.control}
+            name="expeditionType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Expedition Type</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BOAT">Boat Expedition</SelectItem>
+                    <SelectItem value="SNORKEL">Snorkeling</SelectItem>
+                    <SelectItem value="DIVING">Scuba Diving</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="seasons"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Available Seasons</FormLabel>
+              <MultiSelect
+                options={seasonOptions}
+                selected={field.value}
+                onChange={field.onChange}
+                placeholder="Select seasons..."
+              />
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="departurePort"
+            render={({ field }) => (
+              <FormItem className="space-y-2">
+                <FormLabel>Departure Port</FormLabel>
+                <FormControl>
+                  <Input {...field} className="input" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="marineArea"
+            render={({ field }) => (
+              <FormItem className="space-y-2">
+                <FormLabel>Marine Area</FormLabel>
+                <FormControl>
+                  <Input {...field} className="input" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="basePrice"
+            render={({ field }) => (
+              <FormItem className="space-y-2">
+                <FormLabel>Base Price ($)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    {...field}
+                    className="input"
+                    min={0}
+                    step={0.01}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="maxParticipants"
             render={({ field }) => (
               <FormItem className="space-y-2">
@@ -286,49 +391,14 @@ export default function TourForm({
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control as any}
-            name="startLocation"
-            render={({ field }) => (
-              <FormItem className="space-y-2">
-                <FormLabel>Start Location</FormLabel>
-                <FormControl>
-                  <Input {...field} className="input" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control as any}
-            name="endLocation"
-            render={({ field }) => (
-              <FormItem className="space-y-2">
-                <FormLabel>End Location</FormLabel>
-                <FormControl>
-                  <Input {...field} className="input" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
         <FormField
-          control={form.control as any}
-          name="basePrice"
+          control={form.control}
+          name="safetyBriefing"
           render={({ field }) => (
             <FormItem className="space-y-2">
-              <FormLabel>Base Price ($)</FormLabel>
+              <FormLabel>Safety Briefing</FormLabel>
               <FormControl>
-                <Input
-                  type="number"
-                  {...field}
-                  className="input"
-                  min={0}
-                  step={0.01}
-                />
+                <Textarea {...field} className="input" rows={4} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -336,7 +406,7 @@ export default function TourForm({
         />
 
         <FormField
-          control={form.control as any}
+          control={form.control}
           name="published"
           render={({ field }) => (
             <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md p-4">
@@ -353,12 +423,29 @@ export default function TourForm({
           )}
         />
 
-        <div className="flex justify-end space-x-3 pt-4">
-          {onCancel && (
-            <Button type="button" onClick={onCancel} variant="outline">
-              Cancel
-            </Button>
+        <FormField
+          control={form.control}
+          name="startLocationId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Departure Location</FormLabel>
+              <LocationSelect
+                selected={field.value}
+                onChange={field.onChange}
+                locations={locations}
+              />
+            </FormItem>
           )}
+        />
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            onClick={() => router.push("/dashboard/admin/tours")}
+            variant="outline"
+          >
+            Cancel
+          </Button>
           <Button type="submit" variant="tertiary" disabled={isSubmitting}>
             {initialData ? "Update Tour" : "Create Tour"}
             {isSubmitting && (

@@ -10,15 +10,36 @@ export async function GET(
     const { id } = await context.params;
 
     const tour = await prisma.tour.findUnique({
-      where: { id },
+      where: {
+        id,
+        deleted: false,
+      },
       include: {
         schedules: true,
-        motorcycles: {
-          include: {
-            motorcycle: true,
+        itinerary: {
+          orderBy: {
+            dayNumber: "asc",
           },
         },
-        itinerary: true,
+        equipment: {
+          include: {
+            equipment: true,
+          },
+        },
+        accommodations: true,
+        guide: {
+          select: {
+            id: true,
+            name: true,
+            profileImage: true,
+            guideProfile: true,
+          },
+        },
+        category: true,
+        tags: true,
+        locationDetails: true,
+        startLocation: true,
+        endLocation: true,
       },
     });
 
@@ -51,12 +72,21 @@ export async function PUT(
         description: data.description,
         difficulty: data.difficulty,
         duration: data.duration,
-        distance: data.distance,
-        startLocation: data.startLocation,
-        endLocation: data.endLocation,
+        location: data.location,
         maxParticipants: data.maxParticipants,
         basePrice: data.basePrice,
         published: data.published,
+        highlights: data.highlights,
+        inclusions: data.inclusions,
+        exclusions: data.exclusions,
+        images: data.images,
+        tourType: data.tourType,
+        // Optional relations
+        categoryId: data.categoryId,
+        startLocationId: data.startLocationId,
+        endLocationId: data.endLocationId,
+        locationId: data.locationId,
+        guideId: data.guideId,
       },
     });
 
@@ -77,13 +107,14 @@ export async function DELETE(
   try {
     const { id } = params;
 
-    // Delete related records first (due to foreign key constraints)
-    await prisma.$transaction([
-      prisma.tourMotorcycle.deleteMany({ where: { tourId: id } }),
-      prisma.tourAccommodation.deleteMany({ where: { tourId: id } }),
-      prisma.tourSchedule.deleteMany({ where: { tourId: id } }),
-      prisma.tour.delete({ where: { id } }),
-    ]);
+    // Soft delete approach
+    await prisma.tour.update({
+      where: { id },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

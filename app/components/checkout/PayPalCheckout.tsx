@@ -11,6 +11,11 @@ interface PayPalCheckoutProps {
     scheduleId: string;
     participants: number;
     totalPrice: number;
+    contactInfo: {
+      fullName: string;
+      email: string;
+      phone: string;
+    };
     // Add any other booking data needed
   };
   onSuccess: (transactionId: string) => void;
@@ -28,31 +33,61 @@ export default function PayPalCheckout({
   const handleCheckout = async () => {
     setIsLoading(true);
     try {
-      // Call your API to create a PayPal order
+      // Log what we're sending
+      console.log("Sending booking data:", {
+        tourId: bookingData.tourId,
+        scheduleId: bookingData.scheduleId,
+        participants: bookingData.participants,
+        totalPrice: bookingData.totalPrice,
+        contactInfo: bookingData.contactInfo,
+      });
+
+      if (!bookingData.contactInfo?.email || !bookingData.contactInfo?.phone) {
+        throw new Error("Missing contact information");
+      }
+
       const response = await fetch("/api/checkout/create-paypal-order", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify(bookingData),
+        body: JSON.stringify({
+          tourId: bookingData.tourId,
+          scheduleId: bookingData.scheduleId,
+          participants: Number(bookingData.participants),
+          totalPrice: parseFloat(bookingData.totalPrice.toString()),
+          contactInfo: bookingData.contactInfo,
+          currency: "USD",
+        }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error("Failed to create PayPal order");
+        console.error("API Error Details:", data);
+        throw new Error(
+          data.error?.message ||
+            `Payment failed with status ${response.status} - ${JSON.stringify(data)}`
+        );
       }
 
-      const { orderID } = await response.json();
-
-      // Redirect to PayPal checkout page
-      // You can also use PayPal SDK for a more integrated experience
-      router.push(`/checkout/${orderID}`);
-
-      // For demo purposes, simulate a successful transaction
-      // In production, you would handle the PayPal callback
-      // onSuccess("demo-transaction-id");
+      if (data.approvalUrl) {
+        window.location.href = data.approvalUrl;
+      } else {
+        throw new Error("Missing PayPal approval URL");
+      }
     } catch (error) {
-      toast.error("Payment failed. Please try again.");
-      onError(error as Error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error("Payment Failed", {
+        description: errorMessage,
+        action: {
+          label: "Retry",
+          onClick: () => handleCheckout(),
+        },
+      });
+      onError(error instanceof Error ? error : new Error(errorMessage));
     } finally {
       setIsLoading(false);
     }
@@ -61,10 +96,10 @@ export default function PayPalCheckout({
   return (
     <Button
       onClick={handleCheckout}
-      className="w-full bg-[#0070ba] hover:bg-[#003087] text-white"
+      className="w-full bg-primary hover:bg-primary-dark text-black font-primary"
       disabled={isLoading}
     >
-      {isLoading ? "Processing..." : "Proceed to Checkout"}
+      {isLoading ? "Processing payment..." : "Proceed to PayPal Checkout"}
     </Button>
   );
 }

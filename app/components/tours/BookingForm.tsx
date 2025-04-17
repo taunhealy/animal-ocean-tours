@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/app/components/ui/select";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 interface Schedule {
@@ -28,7 +29,17 @@ interface BookingFormProps {
   tourId: string;
   schedules: Schedule[];
   basePrice: number;
-  checkoutComponent: React.ComponentType<any>;
+  checkoutComponent: React.FC<{
+    bookingData: {
+      tourId: string;
+      scheduleId: string;
+      participants: number;
+      totalPrice: number;
+      contactInfo: ContactInfo;
+    };
+    onSuccess: (transactionId: string) => void;
+    onError: (error: Error) => void;
+  }>;
 }
 
 interface ContactInfo {
@@ -44,7 +55,16 @@ export default function BookingForm({
   checkoutComponent: CheckoutComponent,
 }: BookingFormProps) {
   const { data: session } = useSession();
-  const [selectedSchedule, setSelectedSchedule] = useState<string>("");
+  const router = useRouter();
+  const [selectedTour, setSelectedTour] = useState<{
+    id: string;
+    slug: string;
+    name: string;
+  }>();
+  const [selectedSchedule, setSelectedSchedule] = useState<{
+    id: string;
+    startDate: Date;
+  }>();
   const [participants, setParticipants] = useState<string>("1");
   const [step, setStep] = useState<"select" | "contact" | "checkout">("select");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,15 +144,16 @@ export default function BookingForm({
     }
   };
 
-  const handleCheckoutSuccess = (transactionId: string) => {
-    // Handle successful payment
+  const handlePaymentSuccess = (transactionId: string) => {
+    toast.success("Payment successful! Your booking is confirmed.");
     setBookingComplete(true);
-    toast.success("Booking confirmed! Thank you for your purchase.");
+    router.refresh(); // Optional: Refresh any cached data
   };
 
-  const handleCheckoutError = (error: Error) => {
-    // Handle payment error
-    toast.error("Payment failed. Please try again.");
+  const handlePaymentError = (error: Error) => {
+    console.error("Payment error:", error);
+    toast.error(`Payment failed: ${error.message}`);
+    setIsSubmitting(false);
   };
 
   if (bookingComplete) {
@@ -268,17 +289,28 @@ export default function BookingForm({
           </div>
         </div>
 
-        <CheckoutComponent
-          bookingData={{
-            tourId,
-            scheduleId: selectedSchedule,
-            participants: parseInt(participants),
-            totalPrice: calculatedTotal,
-            contactInfo,
-          }}
-          onSuccess={handleCheckoutSuccess}
-          onError={handleCheckoutError}
-        />
+        <div className="space-y-4">
+          <CheckoutComponent
+            bookingData={{
+              tourId,
+              scheduleId: selectedSchedule,
+              participants: parseInt(participants),
+              totalPrice: calculatedTotal,
+              contactInfo: {
+                fullName: contactInfo.fullName,
+                email: contactInfo.email,
+                phone: contactInfo.phone,
+              },
+            }}
+            onSuccess={handlePaymentSuccess}
+            onError={handlePaymentError}
+          />
+
+          <p className="text-xs text-gray-500 text-center">
+            By completing this payment, you agree to our Terms of Service and
+            Privacy Policy.
+          </p>
+        </div>
 
         <Button
           type="button"

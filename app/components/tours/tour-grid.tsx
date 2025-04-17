@@ -1,3 +1,5 @@
+"use server";
+
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +12,7 @@ import {
 } from "@/app/components/ui/card";
 import { fallbackTours } from "@/lib/data/tours";
 
-interface TourGridProps {
+export interface TourGridProps {
   searchParams: {
     month?: string;
     tourType?: string;
@@ -21,27 +23,37 @@ interface TourGridProps {
 }
 
 export default async function TourGrid({ searchParams }: TourGridProps) {
+  // Wrap all searchParams access in a memoized object
+  const filters = {
+    month: searchParams.month,
+    tourType: searchParams.tourType,
+    difficulty: searchParams.difficulty,
+    duration: searchParams.duration,
+    search: searchParams.search,
+  };
+
   // Build filter conditions based on search params
   const where: any = {
     published: true,
   };
 
-  // Apply search filter
-  if (searchParams.search) {
+  // Use the filters object instead of direct searchParams access
+  if (filters.search) {
     where.OR = [
-      { name: { contains: searchParams.search, mode: "insensitive" } },
-      { description: { contains: searchParams.search, mode: "insensitive" } },
+      { name: { contains: filters.search, mode: "insensitive" } },
+      { description: { contains: filters.search, mode: "insensitive" } },
     ];
   }
 
   // Apply difficulty filter
-  if (searchParams.difficulty) {
-    where.difficulty = searchParams.difficulty;
+  if (filters.difficulty) {
+    where.difficulty = filters.difficulty;
   }
 
   // Apply duration filter
-  if (searchParams.duration) {
-    const [min, max] = searchParams.duration.split("-").map(Number);
+  const duration = filters.duration;
+  if (duration) {
+    const [min, max] = duration.split("-").map(Number);
     where.duration = {
       gte: min || 1,
       lte: max || 999,
@@ -49,12 +61,12 @@ export default async function TourGrid({ searchParams }: TourGridProps) {
   }
 
   // Apply tour type filter
-  if (searchParams.tourType) {
-    where.tourType = searchParams.tourType;
+  if (filters.tourType) {
+    where.tourType = filters.tourType;
   }
 
   // Apply month filter (requires joining with TourSchedule)
-  if (searchParams.month) {
+  if (filters.month) {
     // Convert month name to number (1-12)
     const monthNames = [
       "january",
@@ -71,7 +83,7 @@ export default async function TourGrid({ searchParams }: TourGridProps) {
       "december",
     ];
 
-    const monthIndex = monthNames.indexOf(searchParams.month.toLowerCase());
+    const monthIndex = monthNames.indexOf(filters.month.toLowerCase());
 
     if (monthIndex !== -1) {
       const monthNumber = monthIndex + 1; // Convert to 1-based index
@@ -116,8 +128,8 @@ export default async function TourGrid({ searchParams }: TourGridProps) {
     // Apply filters to fallback data
     const filteredFallbackTours = fallbackTours.filter((tour) => {
       // Apply search filter
-      if (searchParams.search) {
-        const searchLower = searchParams.search.toLowerCase();
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
         if (
           !tour.name.toLowerCase().includes(searchLower) &&
           !tour.description.toLowerCase().includes(searchLower)
@@ -127,28 +139,25 @@ export default async function TourGrid({ searchParams }: TourGridProps) {
       }
 
       // Apply difficulty filter
-      if (
-        searchParams.difficulty &&
-        tour.difficulty !== searchParams.difficulty
-      ) {
+      if (filters.difficulty && tour.difficulty !== filters.difficulty) {
         return false;
       }
 
       // Apply tour type filter
-      if (searchParams.tourType && tour.tourType !== searchParams.tourType) {
+      if (filters.tourType && tour.tourType !== filters.tourType) {
         return false;
       }
 
       // Apply duration filter
-      if (searchParams.duration) {
-        const [min, max] = searchParams.duration.split("-").map(Number);
+      if (filters.duration) {
+        const [min, max] = filters.duration.split("-").map(Number);
         if (tour.duration < min || (max && tour.duration > max)) {
           return false;
         }
       }
 
       // Apply month filter
-      if (searchParams.month) {
+      if (filters.month) {
         const monthNames = [
           "january",
           "february",
@@ -163,7 +172,7 @@ export default async function TourGrid({ searchParams }: TourGridProps) {
           "november",
           "december",
         ];
-        const monthIndex = monthNames.indexOf(searchParams.month.toLowerCase());
+        const monthIndex = monthNames.indexOf(filters.month.toLowerCase());
 
         if (monthIndex !== -1) {
           // Check if any schedule is in the selected month

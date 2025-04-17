@@ -4,11 +4,14 @@ import { PrismaClient } from "@prisma/client";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcrypt";
 import { getServerSession as getServerSessionNextAuth } from "next-auth/next";
+import NextAuth from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
+import { CustomPrismaAdapter } from "@/lib/custom-prisma-adapter";
 
 const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: CustomPrismaAdapter(),
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -46,13 +49,37 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
   ],
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
-    signIn: "/auth/signin",
+    signIn: "/signin",
+    error: "/signin",
   },
+  callbacks: {
+    async session({ session, token }) {
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
+        session.user.role = (token.role as string) || "CUSTOMER";
+      }
+      return session;
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = user.role || "CUSTOMER";
+      }
+      return token;
+    },
+  },
+  debug: process.env.NODE_ENV === "development",
 };
 
 export const getServerSession = () => getServerSessionNextAuth(authOptions);

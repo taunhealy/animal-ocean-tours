@@ -1,17 +1,33 @@
-import { DifficultyLevel, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export interface Tour {
   id: string;
   name: string;
-  description: string;
-  difficulty: DifficultyLevel;
+  difficulty: string;
   duration: number;
-  distance: number;
-  startLocation: string;
-  endLocation: string;
+  marineLifeIds: string[];
+  conservationInfo?: string;
+  tideDependency: boolean;
+  seasons: string[];
+  requiredEquipment: string[];
+  departurePort: string;
+  marineArea?: string;
+  expeditionType: string;
   maxParticipants: number;
-  basePrice: number | Prisma.Decimal;
-  published: boolean;
-  schedules?: any[];
-  // Add other fields as needed
+  basePrice: number; // Decimal handled as number for client-side
+  safetyBriefing: string;
+  images: string[];
+  highlights: string[];
+  inclusions: string[];
+  exclusions: string[];
+  categoryId?: string;
+  guideId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Relations
+  startLocation?: { name: string };
+  endLocation?: { name: string };
+  schedules?: Array<{ id: string }>;
+  equipment?: Array<{ equipment: { id: string; name: string } }>;
 }

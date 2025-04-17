@@ -9,6 +9,18 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  // Get role from session (now populated from database)
   const userRole = session.user.role?.toLowerCase() || "customer";
-  redirect(`/dashboard/${userRole}/bookings/upcoming`);
+
+  // Map roles to existing folder paths
+  const roleRoutes = {
+    admin: "/dashboard/admin",
+    guide: "/dashboard/guide/",
+    customer: "/dashboard/customer/",
+  };
+
+  // Redirect to existing static route
+  const redirectPath =
+    roleRoutes[userRole as keyof typeof roleRoutes] || roleRoutes.customer;
+  redirect(redirectPath);
 }
