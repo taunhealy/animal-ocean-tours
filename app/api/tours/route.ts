@@ -84,12 +84,15 @@ export async function POST(request: Request) {
         duration: tourData.duration,
 
         // Marine-specific fields
-        marineLife: selectedMarineLife,
-        marineLifeIds: tourData.marineLifeIds,
-        startLocation: tourData.startLocation.name,
-        endLocation: tourData.endLocation.name,
-        marineArea: tourData.marineArea,
-        seasons: tourData.seasons,
+        marineLife: {
+          connect: tourData.marineLifeIds.map((id: string) => ({ id })),
+        },
+        startLocation: {
+          connect: { id: tourData.startLocationId },
+        },
+        endLocation: {
+          connect: { id: tourData.endLocationId },
+        },
         expeditionType: tourData.expeditionType,
 
         // Pricing and capacity
@@ -97,7 +100,6 @@ export async function POST(request: Request) {
         maxParticipants: tourData.maxParticipants,
 
         // Safety and equipment
-        requiredEquipment: tourData.requiredEquipment || [],
         safetyBriefing: tourData.safetyBriefing,
 
         // Media and visibility

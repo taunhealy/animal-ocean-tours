@@ -3,7 +3,11 @@ import { Providers } from "./providers";
 import { Inter } from "next/font/google";
 import Navbar from "@/app/components/navbar";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-primary" });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-primary",
+});
 
 export const metadata = {
   title: "My Next.js App",
@@ -16,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable}`}>
       <body>
         <Providers>
           <Navbar />

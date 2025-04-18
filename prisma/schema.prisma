@@ -100,8 +100,7 @@ model Tour {
   itinerary       TourItinerary[]
   deleted         Boolean   @default(false)
   deletedAt       DateTime?
-    marineLifeIds String[] // Add this field
-  marineLife    String[]
+  marineLife      MarineLife[] @relation("TourMarineLife")
   
   categoryId      String?
   category        TourCategory? @relation(fields: [categoryId], references: [id])
@@ -122,11 +121,8 @@ model Tour {
   // Custom fields can be stored in metadata
   metadata        Json?     // Store additional tour-specific data
   paypalOrders    PaypalOrder[]
-  marineArea      String?
   conservationInfo String?  // Add this line
-  seasons         String[] // Add this line
   tideDependency    Boolean @default(false)
-  departurePort     String @default("")
   expeditionType    String @default("")
   safetyBriefing    String @default("")
 }
@@ -439,4 +435,17 @@ model PaypalOrder {
   @@index([orderId])
   @@index([tourId])
   @@index([scheduleId])
+}
+
+// Marine life species and their seasonal patterns
+model MarineLife {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  image       String?
+  // Months when this species is typically spotted (1-12)
+  activeMonths Int[]   
+  tours       Tour[]   @relation("TourMarineLife")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

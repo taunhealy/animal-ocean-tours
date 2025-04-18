@@ -10,23 +10,21 @@ import {
   SelectValue,
 } from "../ui/select";
 
-interface FilterOptions {
-  animalTypes: string[];
-  seasons: string[];
-  tourTypes: string[];
+interface CurrentFilters {
+  month?: string;
+  tourId?: string;
 }
 
-interface CurrentFilters {
-  animalType?: string;
-  season?: string;
-  tourType?: string;
-}
+const MONTHS = Array.from({ length: 12 }, (_, i) => ({
+  value: String(i + 1),
+  label: new Date(0, i).toLocaleString("default", { month: "long" }),
+}));
 
 export default function MarineLifeFilters({
-  options,
+  tours,
   currentFilters,
 }: {
-  options: FilterOptions;
+  tours: { id: string; name: string }[];
   currentFilters: CurrentFilters;
 }) {
   const router = useRouter();
@@ -38,13 +36,11 @@ export default function MarineLifeFilters({
     value: string | undefined
   ) => {
     const params = new URLSearchParams(searchParams.toString());
-
     if (value) {
       params.set(key, value);
     } else {
       params.delete(key);
     }
-
     router.push(`${pathname}?${params.toString()}`);
   };
 
@@ -58,21 +54,19 @@ export default function MarineLifeFilters({
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <label className="font-primary text-sm font-medium">
-            Animal Type
-          </label>
+          <label className="font-primary text-sm font-medium">Month</label>
           <Select
-            value={currentFilters.animalType || undefined}
-            onValueChange={(value) => updateFilter("animalType", value)}
+            value={currentFilters.month}
+            onValueChange={(value) => updateFilter("month", value)}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="All animal types" />
+              <SelectValue placeholder="All months" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All animal types</SelectItem>
-              {options.animalTypes.map((type) => (
-                <SelectItem key={type} value={type.toLowerCase()}>
-                  {type}
+              <SelectItem value="">All months</SelectItem>
+              {MONTHS.map(({ value, label }) => (
+                <SelectItem key={value} value={value}>
+                  {label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -80,41 +74,19 @@ export default function MarineLifeFilters({
         </div>
 
         <div className="space-y-2">
-          <label className="font-primary text-sm font-medium">Season</label>
+          <label className="font-primary text-sm font-medium">Tour</label>
           <Select
-            value={currentFilters.season || undefined}
-            onValueChange={(value) => updateFilter("season", value)}
+            value={currentFilters.tourId}
+            onValueChange={(value) => updateFilter("tourId", value)}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="All seasons" />
+              <SelectValue placeholder="All tours" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All seasons</SelectItem>
-              {options.seasons.map((season) => (
-                <SelectItem key={season} value={season.toLowerCase()}>
-                  {season}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <label className="font-primary text-sm font-medium">
-            Expedition Type
-          </label>
-          <Select
-            value={currentFilters.tourType || undefined}
-            onValueChange={(value) => updateFilter("tourType", value)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All expeditions" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All expeditions</SelectItem>
-              {options.tourTypes.map((type) => (
-                <SelectItem key={type} value={type.toLowerCase()}>
-                  {type}
+              <SelectItem value="">All tours</SelectItem>
+              {tours.map((tour) => (
+                <SelectItem key={tour.id} value={tour.id}>
+                  {tour.name}
                 </SelectItem>
               ))}
             </SelectContent>

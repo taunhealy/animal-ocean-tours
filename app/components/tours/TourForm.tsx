@@ -6,15 +6,12 @@ import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { Tour } from "@/lib/types/tour";
-import { MarineLifeItem } from "@/lib/types/marine-life";
-import { getMarineLifeData } from "@/lib/data/marine-life";
+import { useForm, SubmitHandler } from "react-hook-form";
+import { TourWithRelations } from "@/lib/types/tour";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { Textarea } from "@/app/components/ui/textarea";
-import { LOcationSelect } from "@/app/components/ui/location-select";
 import {
   Form,
   FormControl,
@@ -33,6 +30,26 @@ import {
 import { toast } from "sonner";
 import { MultiSelect } from "@/app/components/ui/multi-select";
 import { LocationSelect } from "@/app/components/ui/location-select";
+import { CreateMarineLife } from "@/app/components/marine-life/create-marine-life";
+
+interface MarineLifeOption {
+  value: string;
+  label: string;
+}
+
+export interface MarineLifeItem {
+  id: string;
+  name: string;
+  scientificName: string;
+  description: string;
+  longDescription?: string;
+  imageUrl: string;
+  animalType: string;
+  seasons: string[];
+  expeditions: string[];
+  slug: string;
+  locations?: string[];
+}
 
 const difficultyOptions = [
   { value: "EASY", label: "Easy" },
@@ -48,35 +65,36 @@ const seasonOptions = [
   { value: "spring", label: "Spring" },
 ];
 
-// Zod schema for form validation
-const tourFormSchema = z.object({
-  name: z.string().min(3, "Tour name must be at least 3 characters"),
-  description: z.string().min(50, "Description required"),
-  difficulty: z.enum(["EASY", "MODERATE", "CHALLENGING", "EXTREME"]),
-  duration: z.coerce.number().int().positive(),
-  marineLifeIds: z.array(z.string()).min(1, "Select marine species"),
-  conservationInfo: z.string().min(20),
-  tideDependency: z.boolean().default(false),
-  departurePort: z.string().min(2),
-  marineArea: z.string().min(2),
-  seasons: z.array(z.string()).min(1),
-  expeditionType: z.string().min(2),
-  maxParticipants: z.coerce.number().int().positive(),
-  basePrice: z.coerce.number().nonnegative(),
-  requiredEquipment: z.array(z.string()).default([]),
-  safetyBriefing: z.string().optional(),
-  images: z.array(z.string()).default([]),
-  published: z.boolean().default(false),
-  guideId: z.string().optional(),
-  categoryId: z.string().optional(),
-  startLocationId: z.string().min(1, "Required"),
-  endLocationId: z.string().min(1, "Required"),
-});
+// 1. Schema for validation
+const tourFormSchema = z
+  .object({
+    name: z.string().min(3),
+    description: z.string().min(50),
+    difficulty: z.enum(["EASY", "MODERATE", "CHALLENGING", "EXTREME"]),
+    duration: z.coerce.number().int().positive(),
+    marineLife: z.array(z.string()),
+    conservationInfo: z.string(),
+    tideDependency: z.boolean(),
+    expeditionType: z.string(),
+    maxParticipants: z.coerce.number().int().positive(),
+    basePrice: z.coerce.number().nonnegative(),
+    safetyBriefing: z.string(),
+    images: z.array(z.string()),
+    published: z.boolean(),
+    guideId: z.string().nullable(),
+    categoryId: z.string().nullable(),
+    startLocationId: z.string().min(1),
+    endLocationId: z.string().min(1),
+    highlights: z.array(z.string()),
+    inclusions: z.array(z.string()),
+    exclusions: z.array(z.string()),
+  })
+  .strict();
 
 type TourFormValues = z.infer<typeof tourFormSchema>;
 
 interface TourFormProps {
-  initialData?: Tour | null;
+  initialData?: TourWithRelations | null;
 }
 
 export default function TourForm({ initialData }: TourFormProps) {
@@ -88,22 +106,33 @@ export default function TourForm({ initialData }: TourFormProps) {
   // Fetch marine life data
   const { data: marineLifeData = [] } = useQuery({
     queryKey: ["marineLife"],
-    queryFn: () => getMarineLifeData(),
+    queryFn: async () => {
+      const response = await fetch("/api/marine-life");
+      return response.json();
+    },
   });
 
-  // Create marine life options for MultiSelect
-  const marineLifeOptions = marineLifeData.map((item: MarineLifeItem) => ({
-    value: item.id,
-    label: item.name,
-  }));
+  // Format marine life options for MultiSelect
+  const marineLifeOptions: MarineLifeOption[] = Array.isArray(marineLifeData)
+    ? marineLifeData.map((item: MarineLifeItem) => ({
+        value: item.id,
+        label: item.name,
+      }))
+    : [];
 
   // Get unique expedition types from marine life data
-  const expeditionOptions = Array.from(
-    new Set(marineLifeData.flatMap((item: MarineLifeItem) => item.expeditions))
-  ).map((expedition) => ({
-    value: expedition,
-    label: expedition,
-  }));
+  const expeditionOptions = Array.isArray(marineLifeData)
+    ? Array.from(
+        new Set(
+          marineLifeData.flatMap(
+            (item: MarineLifeItem) => item.expeditions || []
+          )
+        )
+      ).map((expedition) => ({
+        value: expedition,
+        label: expedition,
+      }))
+    : [];
 
   // Add locations fetch
   const { data: locations = [] } = useQuery({
@@ -118,30 +147,33 @@ export default function TourForm({ initialData }: TourFormProps) {
     }
   }, [status, router]);
 
-  // Initialize form with react-hook-form and zod validation
+  // 3. Initialize the form (simpler setup)
   const form = useForm<TourFormValues>({
-    resolver: zodResolver(tourFormSchema) as any,
+    resolver: zodResolver(tourFormSchema),
     defaultValues: {
       name: initialData?.name || "",
       description: initialData?.description || "",
       difficulty: initialData?.difficulty || "MODERATE",
       duration: initialData?.duration || 4,
-      marineLifeIds: initialData?.marineLifeIds || [],
-      tideDependency: initialData?.tideDependency ?? false,
-      marineArea: initialData?.marineArea || "",
-      seasons: initialData?.seasons || [],
+      marineLife: initialData?.marineLife?.map((ml) => ml.id) || [],
+      conservationInfo: initialData?.conservationInfo || "",
+      tideDependency: initialData?.tideDependency || false,
       expeditionType: initialData?.expeditionType || "",
       maxParticipants: initialData?.maxParticipants || 10,
-      basePrice: initialData?.basePrice ? Number(initialData.basePrice) : 0,
-      requiredEquipment: initialData?.requiredEquipment || [],
+      basePrice: initialData?.basePrice
+        ? Number(initialData.basePrice.toString())
+        : 0,
       safetyBriefing: initialData?.safetyBriefing || "",
       images: initialData?.images || [],
-      published: initialData?.published ?? false,
-      guideId: initialData?.guideId || "",
-      categoryId: initialData?.categoryId || "",
+      published: initialData?.published || false,
+      guideId: initialData?.guideId || null,
+      categoryId: initialData?.categoryId || null,
       startLocationId: initialData?.startLocationId || "",
       endLocationId: initialData?.endLocationId || "",
-    } as TourFormValues,
+      highlights: initialData?.highlights || [],
+      inclusions: initialData?.inclusions || [],
+      exclusions: initialData?.exclusions || [],
+    },
   });
 
   // Mutation for creating/updating tour
@@ -178,7 +210,7 @@ export default function TourForm({ initialData }: TourFormProps) {
     },
   });
 
-  const onSubmitForm = async (values: TourFormValues) => {
+  const onSubmitForm: SubmitHandler<TourFormValues> = async (values) => {
     setIsSubmitting(true);
     tourMutation.mutate(values);
   };
@@ -191,7 +223,7 @@ export default function TourForm({ initialData }: TourFormProps) {
   }
 
   return (
-    <Form {...form}>
+    <Form<TourFormValues, any, TourFormValues> {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmitForm)}
         className="space-y-6 font-primary"
@@ -203,7 +235,7 @@ export default function TourForm({ initialData }: TourFormProps) {
             <FormItem className="space-y-2">
               <FormLabel>Tour Name</FormLabel>
               <FormControl>
-                <Input {...field} className="input" />
+                <Input {...field} value={field.value || ""} className="input" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -268,92 +300,55 @@ export default function TourForm({ initialData }: TourFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="marineLifeIds"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Marine Species</FormLabel>
-                <FormControl>
-                  <MultiSelect
-                    options={marineLifeOptions}
-                    selected={field.value}
-                    onChange={field.onChange}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="expeditionType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Expedition Type</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="BOAT">Boat Expedition</SelectItem>
-                    <SelectItem value="SNORKEL">Snorkeling</SelectItem>
-                    <SelectItem value="DIVING">Scuba Diving</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
         <FormField
           control={form.control}
-          name="seasons"
+          name="marineLife"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Available Seasons</FormLabel>
-              <MultiSelect
-                options={seasonOptions}
-                selected={field.value}
-                onChange={field.onChange}
-                placeholder="Select seasons..."
-              />
+              <FormLabel>Marine Species</FormLabel>
+              <div className="flex gap-2">
+                <FormControl className="flex-1">
+                  <MultiSelect
+                    options={marineLifeOptions}
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    placeholder="Select marine species..."
+                  />
+                </FormControl>
+                <CreateMarineLife
+                  onSuccess={(newMarineLife) => {
+                    // Refetch marine life data after creation
+                    queryClient.invalidateQueries({ queryKey: ["marineLife"] });
+                  }}
+                />
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="departurePort"
-            render={({ field }) => (
-              <FormItem className="space-y-2">
-                <FormLabel>Departure Port</FormLabel>
-                <FormControl>
-                  <Input {...field} className="input" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="marineArea"
-            render={({ field }) => (
-              <FormItem className="space-y-2">
-                <FormLabel>Marine Area</FormLabel>
-                <FormControl>
-                  <Input {...field} className="input" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <FormField
+          control={form.control}
+          name="expeditionType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Expedition Type</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BOAT">Boat Expedition</SelectItem>
+                  <SelectItem value="SNORKEL">Snorkeling</SelectItem>
+                  <SelectItem value="DIVING">Scuba Diving</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
@@ -434,6 +429,23 @@ export default function TourForm({ initialData }: TourFormProps) {
                 onChange={field.onChange}
                 locations={locations}
               />
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="endLocationId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Arrival Location</FormLabel>
+              <LocationSelect
+                selected={field.value}
+                onChange={field.onChange}
+                locations={locations}
+              />
+              <FormMessage />
             </FormItem>
           )}
         />

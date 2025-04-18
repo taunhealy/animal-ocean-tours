@@ -258,7 +258,7 @@ export default async function TourGrid({ searchParams }: TourGridProps) {
                 </Badge>
               </div>
               <div className="text-sm text-gray-500 mb-2">
-                {tour.startLocation?.name || tour.location}
+                {tour.startLocation?.name}
                 {tour.endLocation?.name &&
                   tour.endLocation.name !== tour.startLocation?.name &&
                   ` to ${tour.endLocation.name}`}

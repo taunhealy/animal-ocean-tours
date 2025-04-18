@@ -1,25 +1,25 @@
 "use client";
 
-import { Tour } from "@/lib/types/tour";
+import { TourWithRelations } from "@/lib/types/tour";
 import { useRouter } from "next/navigation";
 import { Button } from "@/app/components/ui/button";
 
 interface TourListProps {
-  tours: Tour[] | undefined;
+  tours: TourWithRelations[] | undefined;
   editPath?: string;
-  onDelete: (id: string) => void;
-  isDeleting: boolean;
+  onDelete?: (id: string) => void;
+  isDeleting?: boolean;
   createPath?: string;
-  onEdit: (tour: Tour) => void;
+  onEdit?: (tour: TourWithRelations) => void;
 }
 
 export default function TourList({
   tours,
   editPath = "/dashboard/admin/tours/edit/[tourId]",
-  onDelete,
-  isDeleting,
+  onDelete = () => {},
+  isDeleting = false,
   createPath = "/dashboard/admin/tours/new",
-  onEdit,
+  onEdit = () => {},
 }: TourListProps) {
   const router = useRouter();
 
