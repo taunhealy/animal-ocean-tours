@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { getMarineLifeData } from "@/lib/data/marine-life";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -45,80 +46,39 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const data = await request.json();
-
-    // Validate marine life IDs exist
-    const marineLifeData = await getMarineLifeData();
-    const validMarineLifeIds = marineLifeData.map((item) => item.id);
-
-    const invalidMarineLifeIds = data.marineLifeIds.filter(
-      (id: string) => !validMarineLifeIds.includes(id)
-    );
-
-    if (invalidMarineLifeIds.length > 0) {
-      return NextResponse.json(
-        {
-          error: `Invalid marine life IDs: ${invalidMarineLifeIds.join(", ")}`,
-        },
-        { status: 400 }
-      );
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get marine life names for display
-    const selectedMarineLife = marineLifeData
-      .filter((item) => data.marineLifeIds.includes(item.id))
-      .map((item) => item.name);
-
-    const tourData = {
-      ...data,
-      startLocationId: data.startLocationId,
-      endLocationId: data.endLocationId,
-    };
+    const data = await request.json();
 
     const tour = await prisma.tour.create({
       data: {
-        // Core tour information
-        name: tourData.name,
-        description: tourData.description,
-        difficulty: tourData.difficulty,
-        duration: tourData.duration,
-
-        // Marine-specific fields
+        name: data.name,
+        description: data.description,
+        difficulty: data.difficulty,
+        duration: data.duration,
+        tourType: data.tourType,
         marineLife: {
-          connect: tourData.marineLifeIds.map((id: string) => ({ id })),
+          connect: data.marineLife.map((id: string) => ({ id })),
         },
         startLocation: {
-          connect: { id: tourData.startLocationId },
+          connect: { id: data.startLocationId },
         },
         endLocation: {
-          connect: { id: tourData.endLocationId },
+          connect: { id: data.endLocationId },
         },
-        expeditionType: tourData.expeditionType,
-
-        // Pricing and capacity
-        basePrice: tourData.basePrice,
-        maxParticipants: tourData.maxParticipants,
-
-        // Safety and equipment
-        safetyBriefing: tourData.safetyBriefing,
-
-        // Media and visibility
-        published: tourData.published || false,
-        images: tourData.images || [],
-
-        // Relationships
-        categoryId: tourData.categoryId || "MARINE_EXPERIENCE",
-        guideId: tourData.guideId,
-
-        // Default values for required schema fields
-        highlights: tourData.highlights || [
-          "Marine life observation",
-          "Educational commentary",
-        ],
-        inclusions: tourData.inclusions || ["Safety equipment", "Expert guide"],
-        exclusions: tourData.exclusions || [
-          "Transportation to departure point",
-        ],
+        basePrice: data.basePrice,
+        maxParticipants: data.maxParticipants,
+        safetyBriefing: data.safetyBriefing,
+        published: data.published || false,
+        images: data.images || [],
+        categoryId: data.categoryId,
+        guideId: data.guideId,
+        highlights: data.highlights || [],
+        inclusions: data.inclusions || [],
+        exclusions: data.exclusions || [],
       },
     });
 
@@ -126,7 +86,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error creating tour:", error);
     return NextResponse.json(
-      { error: "Failed to create marine experience" },
+      { error: "Failed to create tour" },
       { status: 500 }
     );
   }

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-
 import { getServerSession } from "next-auth";
+
 export async function GET() {
   try {
     const marineLife = await prisma.marineLife.findMany({
@@ -20,26 +20,32 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    console.log("Auth session:", session);
-
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
-    console.log("Request body:", body);
-
     const { name, description, image, activeMonths } = body;
+
+    if (!name) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    if (!Array.isArray(activeMonths)) {
+      return NextResponse.json(
+        { error: "activeMonths must be an array" },
+        { status: 400 }
+      );
+    }
 
     const marineLife = await prisma.marineLife.create({
       data: {
         name,
-        description,
-        image,
-        activeMonths,
+        description: description || null, // Optional Text field
+        image: image || null, // Optional String field
+        activeMonths: activeMonths, // Int[]
       },
     });
-    console.log("Created marine life:", marineLife);
 
     return NextResponse.json(marineLife);
   } catch (error) {

@@ -81,8 +81,10 @@ model Tour {
   id              String    @id @default(cuid())
   name            String
   description     String    @db.Text
-  difficulty      DifficultyLevel    // Generic difficulty level (stored as string)
-  duration        Int       // in hours or days
+  difficulty      DifficultyLevel
+  duration        Int
+  tourType        TourType  @relation(fields: [tourTypeId], references: [id])
+  tourTypeId      String
   highlights      String[]
   inclusions      String[]
   exclusions      String[]
@@ -108,9 +110,6 @@ model Tour {
   locationId      String?
   locationDetails Location? @relation(fields: [locationId], references: [id])
   
-  // Generic fields for any tour type
-  tourType        String    // Store as string for flexibility
-  
   // Location relationships
   startLocationId String?
   startLocation   Location? @relation("TourStart", fields: [startLocationId], references: [id])
@@ -123,7 +122,6 @@ model Tour {
   paypalOrders    PaypalOrder[]
   conservationInfo String?  // Add this line
   tideDependency    Boolean @default(false)
-  expeditionType    String @default("")
   safetyBriefing    String @default("")
 }
 
@@ -446,6 +444,15 @@ model MarineLife {
   // Months when this species is typically spotted (1-12)
   activeMonths Int[]   
   tours       Tour[]   @relation("TourMarineLife")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TourType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  tours       Tour[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

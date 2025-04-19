@@ -88,6 +88,7 @@ const tourFormSchema = z
     highlights: z.array(z.string()),
     inclusions: z.array(z.string()),
     exclusions: z.array(z.string()),
+    tourTypeId: z.string(),
   })
   .strict();
 
@@ -158,7 +159,6 @@ export default function TourForm({ initialData }: TourFormProps) {
       marineLife: initialData?.marineLife?.map((ml) => ml.id) || [],
       conservationInfo: initialData?.conservationInfo || "",
       tideDependency: initialData?.tideDependency || false,
-      expeditionType: initialData?.expeditionType || "",
       maxParticipants: initialData?.maxParticipants || 10,
       basePrice: initialData?.basePrice
         ? Number(initialData.basePrice.toString())
@@ -173,6 +173,8 @@ export default function TourForm({ initialData }: TourFormProps) {
       highlights: initialData?.highlights || [],
       inclusions: initialData?.inclusions || [],
       exclusions: initialData?.exclusions || [],
+      tourTypeId: initialData?.tourTypeId || "",
+      tourType: initialData?.tourType?.id || "",
     },
   });
 
@@ -445,6 +447,29 @@ export default function TourForm({ initialData }: TourFormProps) {
                 onChange={field.onChange}
                 locations={locations}
               />
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="tourTypeId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tour Type</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a tour type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tourTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}

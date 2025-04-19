@@ -3,6 +3,7 @@ import { Tour as PrismaTour, Prisma } from "@prisma/client";
 // Use Prisma's utility type for tours with relations
 export type TourWithRelations = Prisma.TourGetPayload<{
   include: {
+    tourType: true;
     marineLife: true;
     startLocation: true;
     endLocation: true;
@@ -28,13 +29,13 @@ export interface Tour {
   description: string;
   difficulty: string;
   duration: number;
+  tourType: string;
   marineLifeIds: string[];
   conservationInfo?: string | null;
   tideDependency: boolean;
   seasons: string[];
   departurePort: string;
   marineArea?: string | null;
-  expeditionType: string;
   maxParticipants: number;
   basePrice: Prisma.Decimal;
   safetyBriefing: string;
