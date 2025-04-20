@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(
   req: Request,
@@ -72,7 +74,11 @@ export async function PUT(
         description: data.description,
         difficulty: data.difficulty,
         duration: data.duration,
-        location: data.location,
+        locationDetails: data.locationId
+          ? {
+              connect: { id: data.locationId },
+            }
+          : undefined,
         maxParticipants: data.maxParticipants,
         basePrice: data.basePrice,
         published: data.published,
@@ -85,7 +91,6 @@ export async function PUT(
         categoryId: data.categoryId,
         startLocationId: data.startLocationId,
         endLocationId: data.endLocationId,
-        locationId: data.locationId,
         guideId: data.guideId,
       },
     });
@@ -121,6 +126,74 @@ export async function DELETE(
     console.error("Error deleting tour:", error);
     return NextResponse.json(
       { error: "Failed to delete tour" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const data = await request.json();
+    const tour = await prisma.tour.update({
+      where: { id: params.id },
+      data: {
+        name: data.name,
+        description: data.description,
+        difficulty: data.difficulty,
+        duration: data.duration,
+        tourType: {
+          connect: { id: data.tourTypeId },
+        },
+        marineLife: {
+          set: data.marineLife.map((id: string) => ({ id })),
+        },
+        startLocation: {
+          connect: { id: data.startLocationId },
+        },
+        endLocation: {
+          connect: { id: data.endLocationId },
+        },
+        basePrice: data.basePrice,
+        maxParticipants: data.maxParticipants,
+        safetyBriefing: data.safetyBriefing,
+        published: data.published,
+        images: data.images,
+        category: data.categoryId
+          ? {
+              connect: { id: data.categoryId },
+            }
+          : undefined,
+        guide: data.guideId
+          ? {
+              connect: { id: data.guideId },
+            }
+          : undefined,
+        highlights: data.highlights,
+        inclusions: data.inclusions,
+        exclusions: data.exclusions,
+        conservationInfo: data.conservationInfo,
+        tideDependency: data.tideDependency,
+        locationDetails: data.locationId
+          ? {
+              connect: { id: data.locationId },
+            }
+          : undefined,
+      },
+    });
+
+    return NextResponse.json(tour);
+  } catch (error) {
+    console.error("Error updating tour:", error);
+    return NextResponse.json(
+      { error: "Failed to update tour" },
       { status: 500 }
     );
   }

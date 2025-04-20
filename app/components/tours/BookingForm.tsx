@@ -61,10 +61,7 @@ export default function BookingForm({
     slug: string;
     name: string;
   }>();
-  const [selectedSchedule, setSelectedSchedule] = useState<{
-    id: string;
-    startDate: Date;
-  }>();
+  const [selectedSchedule, setSelectedSchedule] = useState<string>("");
   const [participants, setParticipants] = useState<string>("1");
   const [step, setStep] = useState<"select" | "contact" | "checkout">("select");
   const [isSubmitting, setIsSubmitting] = useState(false);

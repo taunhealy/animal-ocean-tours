@@ -6,10 +6,13 @@ import { authOptions } from "@/lib/auth";
 export async function GET() {
   try {
     const tourTypes = await prisma.tourType.findMany({
-      orderBy: { name: "asc" },
+      orderBy: {
+        name: "asc",
+      },
     });
     return NextResponse.json(tourTypes);
   } catch (error) {
+    console.error("Error fetching tour types:", error);
     return NextResponse.json(
       { error: "Failed to fetch tour types" },
       { status: 500 }
@@ -24,12 +27,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, description } = await request.json();
+    const data = await request.json();
     const tourType = await prisma.tourType.create({
-      data: { name, description },
+      data: {
+        name: data.name,
+        description: data.description,
+      },
     });
-    return NextResponse.json(tourType);
+
+    return NextResponse.json(tourType, { status: 201 });
   } catch (error) {
+    console.error("Error creating tour type:", error);
     return NextResponse.json(
       { error: "Failed to create tour type" },
       { status: 500 }

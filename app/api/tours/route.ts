@@ -59,7 +59,9 @@ export async function POST(request: Request) {
         description: data.description,
         difficulty: data.difficulty,
         duration: data.duration,
-        tourType: data.tourType,
+        tourType: {
+          connect: { id: data.tourTypeId },
+        },
         marineLife: {
           connect: data.marineLife.map((id: string) => ({ id })),
         },
@@ -74,11 +76,21 @@ export async function POST(request: Request) {
         safetyBriefing: data.safetyBriefing,
         published: data.published || false,
         images: data.images || [],
-        categoryId: data.categoryId,
-        guideId: data.guideId,
+        category: data.categoryId
+          ? {
+              connect: { id: data.categoryId },
+            }
+          : undefined,
+        guide: data.guideId
+          ? {
+              connect: { id: data.guideId },
+            }
+          : undefined,
         highlights: data.highlights || [],
         inclusions: data.inclusions || [],
         exclusions: data.exclusions || [],
+        conservationInfo: data.conservationInfo,
+        tideDependency: data.tideDependency || false,
       },
     });
 

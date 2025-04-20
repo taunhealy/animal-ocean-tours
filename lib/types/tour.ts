@@ -1,4 +1,4 @@
-import { Tour as PrismaTour, Prisma } from "@prisma/client";
+import { Tour as PrismaTour, Prisma, ScheduleType } from "@prisma/client";
 
 // Use Prisma's utility type for tours with relations
 export type TourWithRelations = Prisma.TourGetPayload<{
@@ -10,10 +10,13 @@ export type TourWithRelations = Prisma.TourGetPayload<{
     schedules: true;
     equipment: true;
   };
-}>;
+}> & {
+  scheduleType: ScheduleType;
+};
 
 // UI-specific helper type that extends the Prisma type
 export interface TourListItem extends PrismaTour {
+  scheduleType: ScheduleType;
   startLocation?: { name: string } | null;
   endLocation?: { name: string } | null;
   schedules?: Array<{ id: string }>;
@@ -29,6 +32,7 @@ export interface Tour {
   description: string;
   difficulty: string;
   duration: number;
+  scheduleType: ScheduleType;
   tourType: string;
   marineLifeIds: string[];
   conservationInfo?: string | null;
@@ -90,4 +94,16 @@ export interface Tour {
 
   // Computed properties (if needed in UI)
   requiredEquipment?: string[]; // Derived from equipment relation
+}
+
+// You might also want to add a helper type for schedule display
+export interface TourScheduleDisplay {
+  id: string;
+  startDate: Date;
+  endDate: Date;
+  status: string;
+  availableSpots: number;
+  price: Prisma.Decimal;
+  formattedDuration: string; // e.g., "2 hours" or "3 days"
+  formattedTimeRange: string; // e.g., "9:00 AM - 11:00 AM" or "Jun 1 - Jun 3"
 }

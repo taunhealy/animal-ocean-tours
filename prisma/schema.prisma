@@ -82,7 +82,8 @@ model Tour {
   name            String
   description     String    @db.Text
   difficulty      DifficultyLevel
-  duration        Int
+  duration        Int       // Hours for HOURLY, Days for MULTIDAY
+  scheduleType    ScheduleType @default(HOURLY)
   tourType        TourType  @relation(fields: [tourTypeId], references: [id])
   tourTypeId      String
   highlights      String[]
@@ -455,4 +456,9 @@ model TourType {
   tours       Tour[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum ScheduleType {
+  HOURLY    // For same-day tours with specific hours
+  MULTIDAY  // For tours spanning multiple days
 }

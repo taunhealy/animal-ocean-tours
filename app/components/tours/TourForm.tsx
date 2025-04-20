@@ -31,6 +31,8 @@ import { toast } from "sonner";
 import { MultiSelect } from "@/app/components/ui/multi-select";
 import { LocationSelect } from "@/app/components/ui/location-select";
 import { CreateMarineLife } from "@/app/components/marine-life/create-marine-life";
+import { CreateTourType } from "@/app/components/tours/create-tour-type";
+import { ScheduleType } from "@prisma/client";
 
 interface MarineLifeOption {
   value: string;
@@ -75,7 +77,6 @@ const tourFormSchema = z
     marineLife: z.array(z.string()),
     conservationInfo: z.string(),
     tideDependency: z.boolean(),
-    expeditionType: z.string(),
     maxParticipants: z.coerce.number().int().positive(),
     basePrice: z.coerce.number().nonnegative(),
     safetyBriefing: z.string(),
@@ -89,6 +90,7 @@ const tourFormSchema = z
     inclusions: z.array(z.string()),
     exclusions: z.array(z.string()),
     tourTypeId: z.string(),
+    scheduleType: z.nativeEnum(ScheduleType),
   })
   .strict();
 
@@ -121,24 +123,19 @@ export default function TourForm({ initialData }: TourFormProps) {
       }))
     : [];
 
-  // Get unique expedition types from marine life data
-  const expeditionOptions = Array.isArray(marineLifeData)
-    ? Array.from(
-        new Set(
-          marineLifeData.flatMap(
-            (item: MarineLifeItem) => item.expeditions || []
-          )
-        )
-      ).map((expedition) => ({
-        value: expedition,
-        label: expedition,
-      }))
-    : [];
-
   // Add locations fetch
   const { data: locations = [] } = useQuery({
     queryKey: ["locations"],
     queryFn: () => fetch("/api/locations").then((res) => res.json()),
+  });
+
+  // Add tour types query
+  const { data: tourTypes = [] } = useQuery({
+    queryKey: ["tourTypes"],
+    queryFn: async () => {
+      const response = await fetch("/api/tour-types");
+      return response.json();
+    },
   });
 
   // Check authentication
@@ -174,13 +171,15 @@ export default function TourForm({ initialData }: TourFormProps) {
       inclusions: initialData?.inclusions || [],
       exclusions: initialData?.exclusions || [],
       tourTypeId: initialData?.tourTypeId || "",
-      tourType: initialData?.tourType?.id || "",
+      scheduleType: initialData?.scheduleType || "HOURLY",
     },
   });
 
   // Mutation for creating/updating tour
   const tourMutation = useMutation({
     mutationFn: async (values: TourFormValues) => {
+      console.log("Calling API with values:", values); // Debug log
+
       const url = initialData ? `/api/tours/${initialData.id}` : "/api/tours";
       const method = initialData ? "PATCH" : "POST";
 
@@ -197,24 +196,35 @@ export default function TourForm({ initialData }: TourFormProps) {
         throw new Error(error.message || "Failed to save tour");
       }
 
-      return response.json();
+      const data = await response.json();
+      console.log("API response:", data); // Debug log
+      return data;
     },
     onSuccess: () => {
+      console.log("Mutation successful"); // Debug log
       queryClient.invalidateQueries({ queryKey: ["tours"] });
       toast.success(
         initialData ? "Tour updated successfully" : "Tour created successfully"
       );
       router.push("/dashboard/admin/tours");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
+      console.error("Mutation error:", error); // Debug log
       toast.error(`Error: ${error.message}`);
       setIsSubmitting(false);
     },
   });
 
-  const onSubmitForm: SubmitHandler<TourFormValues> = async (values) => {
+  const onSubmitForm = async (values: TourFormValues) => {
+    console.log("Form submitted with values:", values); // Debug log
     setIsSubmitting(true);
-    tourMutation.mutate(values);
+    try {
+      tourMutation.mutate(values);
+    } catch (error) {
+      console.error("Submit error:", error); // Debug log
+      setIsSubmitting(false);
+      toast.error("Failed to submit form");
+    }
   };
 
   // If loading authentication, show loading state
@@ -225,34 +235,31 @@ export default function TourForm({ initialData }: TourFormProps) {
   }
 
   return (
-    <Form<TourFormValues, any, TourFormValues> {...form}>
+    <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmitForm)}
+        onSubmit={form.handleSubmit((data) => {
+          console.log("Form submitting...", data); // Debug log
+          onSubmitForm(data);
+        })}
         className="space-y-6 font-primary"
       >
         <FormField
-          control={form.control}
           name="name"
           render={({ field }) => (
             <FormItem className="space-y-2">
               <FormLabel>Tour Name</FormLabel>
-              <FormControl>
-                <Input {...field} value={field.value || ""} className="input" />
-              </FormControl>
+              <Input {...field} className="input" />
               <FormMessage />
             </FormItem>
           )}
         />
 
         <FormField
-          control={form.control}
           name="description"
           render={({ field }) => (
             <FormItem className="space-y-2">
               <FormLabel>Description</FormLabel>
-              <FormControl>
-                <Textarea {...field} className="input" rows={4} />
-              </FormControl>
+              <Textarea {...field} className="input" rows={4} />
               <FormMessage />
             </FormItem>
           )}
@@ -260,7 +267,6 @@ export default function TourForm({ initialData }: TourFormProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
-            control={form.control}
             name="difficulty"
             render={({ field }) => (
               <FormItem className="space-y-2">
@@ -269,11 +275,9 @@ export default function TourForm({ initialData }: TourFormProps) {
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                 >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select difficulty" />
-                    </SelectTrigger>
-                  </FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select difficulty" />
+                  </SelectTrigger>
                   <SelectContent>
                     {difficultyOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
@@ -288,14 +292,22 @@ export default function TourForm({ initialData }: TourFormProps) {
           />
 
           <FormField
-            control={form.control}
-            name="duration"
+            name="scheduleType"
             render={({ field }) => (
               <FormItem className="space-y-2">
-                <FormLabel>Duration (hours)</FormLabel>
-                <FormControl>
-                  <Input type="number" {...field} className="input" min={1} />
-                </FormControl>
+                <FormLabel>Schedule Type</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select schedule type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HOURLY">Hourly (Same-day)</SelectItem>
+                    <SelectItem value="MULTIDAY">Multi-day Tour</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -303,20 +315,32 @@ export default function TourForm({ initialData }: TourFormProps) {
         </div>
 
         <FormField
-          control={form.control}
+          name="duration"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>
+                Duration (
+                {form.watch("scheduleType") === "HOURLY" ? "hours" : "days"})
+              </FormLabel>
+              <FormControl>
+                <Input type="number" {...field} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
           name="marineLife"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Marine Species</FormLabel>
               <div className="flex gap-2">
-                <FormControl className="flex-1">
-                  <MultiSelect
-                    options={marineLifeOptions}
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    placeholder="Select marine species..."
-                  />
-                </FormControl>
+                <MultiSelect
+                  options={marineLifeOptions}
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  placeholder="Select marine species..."
+                />
                 <CreateMarineLife
                   onSuccess={(newMarineLife) => {
                     // Refetch marine life data after creation
@@ -329,59 +353,30 @@ export default function TourForm({ initialData }: TourFormProps) {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="expeditionType"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Expedition Type</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BOAT">Boat Expedition</SelectItem>
-                  <SelectItem value="SNORKEL">Snorkeling</SelectItem>
-                  <SelectItem value="DIVING">Scuba Diving</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
-            control={form.control}
             name="basePrice"
             render={({ field }) => (
               <FormItem className="space-y-2">
                 <FormLabel>Base Price ($)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    {...field}
-                    className="input"
-                    min={0}
-                    step={0.01}
-                  />
-                </FormControl>
+                <Input
+                  type="number"
+                  {...field}
+                  className="input"
+                  min={0}
+                  step={0.01}
+                />
                 <FormMessage />
               </FormItem>
             )}
           />
 
           <FormField
-            control={form.control}
             name="maxParticipants"
             render={({ field }) => (
               <FormItem className="space-y-2">
                 <FormLabel>Max Participants</FormLabel>
-                <FormControl>
-                  <Input type="number" {...field} className="input" min={1} />
-                </FormControl>
+                <Input type="number" {...field} className="input" min={1} />
                 <FormMessage />
               </FormItem>
             )}
@@ -389,30 +384,24 @@ export default function TourForm({ initialData }: TourFormProps) {
         </div>
 
         <FormField
-          control={form.control}
           name="safetyBriefing"
           render={({ field }) => (
             <FormItem className="space-y-2">
               <FormLabel>Safety Briefing</FormLabel>
-              <FormControl>
-                <Textarea {...field} className="input" rows={4} />
-              </FormControl>
+              <Textarea {...field} className="input" rows={4} />
               <FormMessage />
             </FormItem>
           )}
         />
 
         <FormField
-          control={form.control}
           name="published"
           render={({ field }) => (
             <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md p-4">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
+              <Checkbox
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
               <div className="space-y-1 leading-none">
                 <FormLabel>Publish Tour</FormLabel>
               </div>
@@ -421,7 +410,6 @@ export default function TourForm({ initialData }: TourFormProps) {
         />
 
         <FormField
-          control={form.control}
           name="startLocationId"
           render={({ field }) => (
             <FormItem>
@@ -437,7 +425,6 @@ export default function TourForm({ initialData }: TourFormProps) {
         />
 
         <FormField
-          control={form.control}
           name="endLocationId"
           render={({ field }) => (
             <FormItem>
@@ -453,23 +440,28 @@ export default function TourForm({ initialData }: TourFormProps) {
         />
 
         <FormField
-          control={form.control}
           name="tourTypeId"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Tour Type</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a tour type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tourTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select a tour type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tourTypes.map((type: { id: string; name: string }) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <CreateTourType />
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -483,8 +475,16 @@ export default function TourForm({ initialData }: TourFormProps) {
           >
             Cancel
           </Button>
-          <Button type="submit" variant="tertiary" disabled={isSubmitting}>
-            {initialData ? "Update Tour" : "Create Tour"}
+          <Button
+            type="submit"
+            variant="tertiary"
+            disabled={isSubmitting || !form.formState.isValid}
+          >
+            {isSubmitting
+              ? "Submitting..."
+              : initialData
+                ? "Update Tour"
+                : "Create Tour"}
             {isSubmitting && (
               <span className="ml-2">
                 <svg
